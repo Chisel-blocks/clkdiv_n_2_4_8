@@ -10,9 +10,7 @@ version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.r
 
 scalaVersion := "2.11.11"
 
-//libraryDependencies += "berkeley" %% "rocketchip" % "1.2"
-libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
-
+// [TODO] what are these needed for? remove if obsolete
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
     // If we're building with Scala > 2.11, enable the compile option
@@ -38,31 +36,44 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
     }
   }
 }
-def gitSubmoduleHashSnapshotVersion(submodule: String): String = {
-    scala.sys.process.Process(Seq("/bin/sh", "-c", "git submodule status | grep hbwif | awk '{print substr($1,0,7)}'")).!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
+
+// Parse the version of a submodle from the git submodule status
+// for those modules not version controlled by Maven or equivalent
+def gitSubmoduleHashSnapshotVersion(submod: String): String = {
+    val shellcommand =  "git submodule status | grep %s | awk '{print substr($1,0,7)}'".format(submod)
+    scala.sys.process.Process(Seq("/bin/sh", "-c", shellcommand )).!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
 }
 
 
+// [TODO] what are these needed for? remove if obsolete
+crossScalaVersions := Seq("2.11.11", "2.12.3")
 scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
+// [TODO] what are these needed for? remove if obsolete
 resolvers ++= Seq(
   Resolver.sonatypeRepo("snapshots"),
   Resolver.sonatypeRepo("releases")
 )
+// [TODO]: Is this redundant?
+resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/"
 
 // Provide a managed dependency on X if -DXVersion="" is supplied on the command line.
+// [TODO] is simpler clearer?
 val defaultVersions = Map(
   "chisel3" -> "3.2-SNAPSHOT",
   "chisel-iotesters" -> "1.1.+"
   )
+
 libraryDependencies ++= (Seq("chisel3","chisel-iotesters").map {
   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep)) })
 
+
+//This is (mainly) for TheSDK testbenches, may become obsolete
 libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
 
 libraryDependencies  ++= Seq(
-//  // Last stable release
+// Last stable release
   "org.scalanlp" %% "breeze" % "0.13.2",
   
 // Native libraries are not included by default. add this if you want them (as of 0.7)
@@ -76,13 +87,14 @@ libraryDependencies  ++= Seq(
   "org.scalanlp" %% "breeze-viz" % "0.13.2"
 )
 
-
-resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/"
-
-
+// Some common deps in BWRC projects, select if needed
+// TODO-how to figure out what version is the current and the best?
 libraryDependencies += "edu.berkeley.cs" %% "dsptools" % "1.1-SNAPSHOT"
+
+//libraryDependencies += "berkeley" %% "rocketchip" % "1.2"
 //libraryDependencies += "edu.berkeley.eecs" %% "ofdm" % "0.1"
-//libraryDependencies += "edu.berkeley.cs" %% "hbwif" % ("git submodule status | grep hbwif | awk '{print substr($1,0,7)}'"!!).mkString.replaceAll("\\s", "")+"-SNAPSHOT"
-//libraryDependencies += "edu.berkeley.cs" %% "hbwif" % gitSubmoduleHashSnapshotVersion("hbwif")
 //libraryDependencies += "edu.berkeley.cs" %% "eagle_serdes" % "0.0-SNAPSHOT"
+
+// Put your git-version controlled snapshots here
+//libraryDependencies += "edu.berkeley.cs" %% "hbwif" % gitSubmoduleHashSnapshotVersion("hbwif")
 
