@@ -2,6 +2,17 @@ import scala.sys.process._
 // OBS: sbt._ has also process. Importing scala.sys.process 
 // and explicitly using it ensures the correct operation
 
+organization := "edu.berkeley.cs"
+
+name := "MODULE"
+
+version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
+
+scalaVersion := "2.11.11"
+
+//libraryDependencies += "berkeley" %% "rocketchip" % "1.2"
+libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
+
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
     // If we're building with Scala > 2.11, enable the compile option
@@ -39,6 +50,8 @@ version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.r
 scalaVersion := "2.11.11"
 
 crossScalaVersions := Seq("2.11.11", "2.12.3")
+scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
+javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("snapshots"),
@@ -50,17 +63,16 @@ val defaultVersions = Map(
   "chisel3" -> "3.2-SNAPSHOT",
   "chisel-iotesters" -> "1.1.+"
   )
-
 libraryDependencies ++= (Seq("chisel3","chisel-iotesters").map {
   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep)) })
 
 libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
 
 libraryDependencies  ++= Seq(
-  // Last stable release
+//  // Last stable release
   "org.scalanlp" %% "breeze" % "0.13.2",
   
-  // Native libraries are not included by default. add this if you want them (as of 0.7)
+// Native libraries are not included by default. add this if you want them (as of 0.7)
   // Native libraries greatly improve performance, but increase jar sizes. 
   // It also packages various blas implementations, which have licenses that may or may not
   // be compatible with the Apache License. No GPL code, as best I know.
@@ -74,19 +86,10 @@ libraryDependencies  ++= Seq(
 
 resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/"
 
-scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
-
-javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 libraryDependencies += "edu.berkeley.cs" %% "dsptools" % "1.1-SNAPSHOT"
-libraryDependencies += "edu.berkeley.eecs" %% "ofdm" % "0.1"
-
+//libraryDependencies += "edu.berkeley.eecs" %% "ofdm" % "0.1"
 //libraryDependencies += "edu.berkeley.cs" %% "hbwif" % ("git submodule status | grep hbwif | awk '{print substr($1,0,7)}'"!!).mkString.replaceAll("\\s", "")+"-SNAPSHOT"
-libraryDependencies += "edu.berkeley.cs" %% "hbwif" % gitSubmoduleHashSnapshotVersion("hbwif")
-
-libraryDependencies += "edu.berkeley.cs" %% "eagle_serdes" % "0.0-SNAPSHOT"
-
-
-
-
+//libraryDependencies += "edu.berkeley.cs" %% "hbwif" % gitSubmoduleHashSnapshotVersion("hbwif")
+//libraryDependencies += "edu.berkeley.cs" %% "eagle_serdes" % "0.0-SNAPSHOT"
 
