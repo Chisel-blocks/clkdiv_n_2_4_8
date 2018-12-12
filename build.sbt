@@ -4,7 +4,7 @@ import scala.sys.process._
 
 organization := "edu.berkeley.cs"
 
-name := "MODULE"
+name := "clkdiv_n_2_4_8"
 
 version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
 
@@ -42,14 +42,7 @@ def gitSubmoduleHashSnapshotVersion(submodule: String): String = {
     scala.sys.process.Process(Seq("/bin/sh", "-c", "git submodule status | grep hbwif | awk '{print substr($1,0,7)}'")).!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
 }
 
-name := "TheSDK-Generators"
 
-//version := "3.0.0" 
-version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
-
-scalaVersion := "2.11.11"
-
-crossScalaVersions := Seq("2.11.11", "2.12.3")
 scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
