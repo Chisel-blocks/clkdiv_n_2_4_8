@@ -23,7 +23,7 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     val en  = Wire(Bool()) 
     en  := !io.reset_clk 
     val r_shift=RegInit(0.U.asTypeOf(io.shift))
-    val r_Ndiv=RegInit(0.U.asTypeOf(io.shift))
+    val r_Ndiv=RegInit(0.U.asTypeOf(io.Ndiv))
     val stateregisters=RegInit(VecInit(Seq.fill(4)(false.B)))
     val count=RegInit(0.U(n.W))
 
