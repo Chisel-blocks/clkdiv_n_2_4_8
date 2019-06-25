@@ -2,13 +2,12 @@ import scala.sys.process._
 // OBS: sbt._ has also process. Importing scala.sys.process 
 // and explicitly using it ensures the correct operation
 
-organization := "edu.berkeley.cs"
+organization := "Chisel-blocks"
 
 name := "clkdiv_n_2_4_8"
 
-version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
-
-scalaVersion := "2.11.11"
+version := scala.sys.process.Process("git rev-parse --short HEAD").!!.mkString.replaceAll("\\s", "")
+scalaVersion := "2.12.3"
 
 // [TODO] what are these needed for? remove if obsolete
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
@@ -41,8 +40,7 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
 // for those modules not version controlled by Maven or equivalent
 def gitSubmoduleHashSnapshotVersion(submod: String): String = {
     val shellcommand =  "git submodule status | grep -w %s | awk '{print substr($1,0,7)}'".format(submod)
-    scala.sys.process.Process(Seq("/bin/sh", "-c", shellcommand )).!!.mkString.replaceAll("\\s", "")+"-SNAPSHOT"
-}
+    scala.sys.process.Process(Seq("/bin/sh", "-c", shellcommand )).!!.mkString.replaceAll("\\s", "")
 
 
 // [TODO] what are these needed for? remove if obsolete
@@ -60,7 +58,7 @@ resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositori
 
 // Provide a managed dependency on X if -DXVersion="" is supplied on the command line.
 val defaultVersions = Map(
-  "chisel3" -> "3.1.6",
+  "chisel3" -> "3.1.7",
   "chisel-iotesters" -> "1.2.5",
   "dsptools" -> "1.1.4"
   )
@@ -71,7 +69,7 @@ libraryDependencies ++= (Seq("chisel3","dsptools", "chisel-iotesters").map {
 
 
 //This is (mainly) for TheSDK testbenches, may become obsolete
-libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
+//libraryDependencies += "com.gilt" %% "handlebars-scala" % "2.1.1"
 
 libraryDependencies  ++= Seq(
 // Last stable release
