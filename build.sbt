@@ -67,9 +67,6 @@ val defaultVersions = Map(
 libraryDependencies ++= (Seq("chisel3","dsptools", "chisel-iotesters").map {
   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep)) })
 
-
-
-
 //libraryDependencies  ++= Seq(
 //// Last stable release
 //  "org.scalanlp" %% "breeze" % "0.13.2",
