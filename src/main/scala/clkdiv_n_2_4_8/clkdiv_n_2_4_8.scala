@@ -26,7 +26,7 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     en := !io.reset_clk 
 
     val r_shift = RegInit(0.U.asTypeOf(io.shift))
-    val r_Ndiv = RegInit(0.U.asTypeOf(io.Ndiv))
+    val r_Ndiv = RegInit(1.U.asTypeOf(io.Ndiv))
     val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
     val count = RegInit(0.U(n.W))
 
@@ -37,7 +37,7 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     r_Ndiv := io.Ndiv
 
     when (en) {
-        when (count === r_Ndiv - 1) {
+        when (count >= r_Ndiv - 1) {
             count := 0.U
             stateregisters(0) := true.B
         } .otherwise {
