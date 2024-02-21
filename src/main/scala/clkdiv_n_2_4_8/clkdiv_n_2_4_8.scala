@@ -15,7 +15,7 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     val io = IO(new Bundle {
         val Ndiv       = Input(UInt(n.W))
         val reset_clk  = Input(Bool())
-        val shift      = Input(UInt(2.W))
+        val shift      = Input(UInt(3.W))
         val clkpn      = Output(Bool())
         val clkp2n     = Output(Bool())
         val clkp4n     = Output(Bool())
@@ -94,18 +94,11 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
      outregs(i) := stateregisters(i)
     }
 
-    // Output selection logic
-    val w_isdivone = Wire(Bool())
-    w_isdivone := (r_Ndiv - 1 === 0.U)
     
     //First we sync or zero the divided clocks depending on the shift 
     val syncregs = RegInit(VecInit(Seq.fill(4)(false.B)))
     val w_clkpn = Wire(Bool())
-    val w_sel_clock_clkpn = Wire(Bool())
-    val w_sel_clock_clkp2n = Wire(Bool())
-    val w_sel_clock_clkp4n = Wire(Bool())
-    val w_sel_clock_clkp8n = Wire(Bool())
-    
+  
     //Shifting mux
     w_clkpn := RegNext(outregs(0))
     when (r_shift === 0.U){
@@ -128,6 +121,11 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
         syncregs(1) := 0.U 
         syncregs(2) := 0.U
         syncregs(3) := w_clkpn
+    }.elsewhen(r_shift - 4 === 0.U){
+        syncregs(0) := 0.U
+        syncregs(1) := 0.U 
+        syncregs(2) := 0.U
+        syncregs(3) := 0.U
     }.otherwise{
         syncregs(0) := w_clkpn
         syncregs(1) := outregs(1) 
@@ -135,33 +133,52 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
         syncregs(3) := outregs(3)
     }
 
+
+    // Output selection logic
+    val w_isdivone = Wire(Bool())
+    w_isdivone := (r_Ndiv - 1 === 0.U)
+
+    val w_sel1_clock_clkpn  = Wire(Bool())
+    val w_sel1_clock_clkp2n = Wire(Bool())
+    val w_sel1_clock_clkp4n = Wire(Bool())
+    val w_sel1_clock_clkp8n = Wire(Bool())
+    val w_seln_clock_clkpn  = Wire(Bool())
+    val w_seln_clock_clkp2n = Wire(Bool())
+    val w_seln_clock_clkp4n = Wire(Bool())
+    val w_seln_clock_clkp8n = Wire(Bool()) 
+
     //Selector signals for the output mux
-    w_sel_clock_clkpn := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
-    w_sel_clock_clkp2n := w_isdivone && ((r_shift - 1 === 0.U) || (r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
-    w_sel_clock_clkp4n := w_isdivone && ((r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
-    w_sel_clock_clkp8n := w_isdivone && ((r_shift - 3 === 0.U))
+    w_sel1_clock_clkpn  := w_isdivone && ((r_shift === 0.U))
+    w_sel1_clock_clkp2n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U))
+    w_sel1_clock_clkp4n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U))
+    w_sel1_clock_clkp8n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
     
+    w_seln_clock_clkpn  := ((r_shift - 1 === 0.U))
+    w_seln_clock_clkp2n := ((r_shift - 2 === 0.U))
+    w_seln_clock_clkp4n := ((r_shift - 3 === 0.U))
+    w_seln_clock_clkp8n := ((r_shift - 4 === 0.U))
+
     // Output Muxes
     //Mux for clkpn
-    when (w_sel_clock_clkpn){
+    when (w_sel1_clock_clkpn || w_seln_clock_clkpn){
         io.clkpn := clock.asUInt
     } .otherwise {
         io.clkpn := syncregs(0)
     }
     //Mux for clkp2n
-    when (w_sel_clock_clkp2n){
+    when (w_sel1_clock_clkp2n || w_seln_clock_clkp2n){
         io.clkp2n := clock.asUInt
     } .otherwise {
         io.clkp2n := syncregs(1)
     }
     //Mux for clkp4n
-    when (w_sel_clock_clkp4n){
+    when (w_sel1_clock_clkp4n || w_seln_clock_clkp4n){
         io.clkp4n := clock.asUInt
     } .otherwise {
         io.clkp4n := syncregs(2)
     }
     //Mux for clkp8n
-    when (w_sel_clock_clkp8n){
+    when (w_sel1_clock_clkp8n || w_seln_clock_clkp8n){
         io.clkp8n := clock.asUInt
     } .otherwise {
         io.clkp8n := syncregs(3)
