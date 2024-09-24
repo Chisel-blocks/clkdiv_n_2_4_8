@@ -3,13 +3,14 @@
 // Last modification by Marko Kosunen, marko.kosunen@aalto.fi, 31.10.2018 13:49
 package clkdiv_universal
 
-import chisel3.experimental._
 import chisel3._
+import chisel3.util._
+import chisel3.experimental._
 import chisel3.stage.{ChiselStage, ChiselGeneratorAnnotation}
-import chisel3.stage.ChiselGeneratorAnnotation
 import dsptools._
 import dsptools.numbers._
 import breeze.math.Complex
+
 
 class phaseaccumIO extends Bundle {
     val control = new Bundle {
@@ -31,15 +32,15 @@ class phaseaccum extends Module {
     io.out.iMSB := ~accum(32, 32)
 }
 
-class clkdiv_universalCTRL() extends Bundle {
+class clkdiv_universalCTRL(n: Int) extends Bundle {
     val Ndiv       = Input(UInt(n.W))
     val reset_clk  = Input(Bool())
     val shift      = Input(UInt(3.W))
     val word       = Input(UInt(32.W))
 }
 
-class clkdiv_universalIO() extends Bundle {
-    val control = new fd_universalCTRL(gainBits=gainBits)
+class clkdiv_universalIO(n: Int) extends Bundle {
+    val control = new clkdiv_universalCTRL(n=n)
     val out = new Bundle {
         val clkpf      = Output(Bool())
         val clkpfn     = Output(Bool())
@@ -51,7 +52,7 @@ class clkdiv_universalIO() extends Bundle {
 }
 
 class clkdiv_universal (n: Int=8) extends Module {
-    val io = IO(new clkdiv_n_2_4_8IO())
+    val io = IO(new clkdiv_universalIO(n=n))
 
     val en = Wire(Bool()) 
     en := !io.control.reset_clk 
