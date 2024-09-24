@@ -1,7 +1,7 @@
 // Clk divider. Initiallyl  written by Marko Kosunen
 // Divides input clock by N, 2N , 4N and 8N
 // Last modification by Marko Kosunen, marko.kosunen@aalto.fi, 31.10.2018 13:49
-package clkdiv_n_2_4_8
+package clkdiv_universal
 
 import chisel3.experimental._
 import chisel3._
@@ -11,30 +11,61 @@ import dsptools._
 import dsptools.numbers._
 import breeze.math.Complex
 
-class clkdiv_n_2_4_8 (n: Int=8) extends Module {
-    val io = IO(new Bundle {
-        val Ndiv       = Input(UInt(n.W))
-        val reset_clk  = Input(Bool())
-        val shift      = Input(UInt(3.W))
-        val clkpn      = Output(Bool())
-        val clkp2n     = Output(Bool())
-        val clkp4n     = Output(Bool())
-        val clkp8n     = Output(Bool())
-    })
+class phaseaccumIO extends Bundle {
+    val control = new Bundle {
+        val word = Input(UInt(32.W))
+    }
+    val out = new Bundle {
+        val phase = Output(SInt(17.W))
+        val iMSB = Output(UInt(1.W))
+    }
+}
+
+class phaseaccum extends Module {
+    val io = IO(new phaseaccumIO())
+    val accum = RegInit(0.U(33.W))
+
+    accum := accum + io.control.word
+
+    io.out.phase := (Cat(0.U(1.W) + accum(31, 16))).asSInt
+    io.out.iMSB := ~accum(32, 32)
+}
+
+class clkdiv_universalCTRL() extends Bundle {
+    val Ndiv       = Input(UInt(n.W))
+    val reset_clk  = Input(Bool())
+    val shift      = Input(UInt(3.W))
+    val word       = Input(UInt(32.W))
+}
+
+class clkdiv_universalIO() extends Bundle {
+    val control = new fd_universalCTRL(gainBits=gainBits)
+    val out = new Bundle {
+        val clkpf      = Output(Bool())
+        val clkpfn     = Output(Bool())
+        val clkpf2n    = Output(Bool())
+        val clkpf4n    = Output(Bool())
+        val clkpf8n    = Output(Bool())
+        val phase      = Output(Bool())
+    }
+}
+
+class clkdiv_universal (n: Int=8) extends Module {
+    val io = IO(new clkdiv_n_2_4_8IO())
 
     val en = Wire(Bool()) 
-    en := !io.reset_clk 
+    en := !io.control.reset_clk 
 
-    val r_shift = RegInit(0.U.asTypeOf(io.shift))
-    val r_Ndiv = RegInit(1.U.asTypeOf(io.Ndiv))
+    val r_shift = RegInit(0.U.asTypeOf(io.control.shift))
+    val r_Ndiv = RegInit(1.U.asTypeOf(io.control.Ndiv))
     val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
     val count = RegInit(0.U(n.W))
 
     //Sync the shift
-    r_shift := io.shift
+    r_shift := io.control.shift
 
     //Sync the Ndiv
-    r_Ndiv := io.Ndiv
+    r_Ndiv := io.control.Ndiv
 
     when (en) {
         when (count >= r_Ndiv - 1) {
@@ -67,6 +98,13 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     }
     
     val enchain = Seq(enN, en2, en4, en8)
+
+    // Phase accum and register for mu
+    val phaseaccum = Module(new phaseaccum())
+    phaseaccum.io.control.word := io.control.word
+
+    io.out.clkpfn := phaseaccum.io.out.iMSB
+    io.out.phase := phaseaccum.io.out.phase
 
     // Monitors if the all previous stages are zero
     val allzp = Wire(Vec(4,Bool()))
@@ -138,60 +176,59 @@ class clkdiv_n_2_4_8 (n: Int=8) extends Module {
     val w_isdivone = Wire(Bool())
     w_isdivone := (r_Ndiv - 1 === 0.U)
 
-    val w_sel1_clock_clkpn  = Wire(Bool())
-    val w_sel1_clock_clkp2n = Wire(Bool())
-    val w_sel1_clock_clkp4n = Wire(Bool())
-    val w_sel1_clock_clkp8n = Wire(Bool())
-    val w_seln_clock_clkpn  = Wire(Bool())
-    val w_seln_clock_clkp2n = Wire(Bool())
-    val w_seln_clock_clkp4n = Wire(Bool())
-    val w_seln_clock_clkp8n = Wire(Bool()) 
+    val w_sel1_clock_clkpfn  = Wire(Bool())
+    val w_sel1_clock_clkpf2n = Wire(Bool())
+    val w_sel1_clock_clkpf4n = Wire(Bool())
+    val w_sel1_clock_clkpf8n = Wire(Bool())
+    val w_seln_clock_clkpfn  = Wire(Bool())
+    val w_seln_clock_clkpf2n = Wire(Bool())
+    val w_seln_clock_clkpf4n = Wire(Bool())
+    val w_seln_clock_clkpf8n = Wire(Bool()) 
 
     //Selector signals for the output mux
-    w_sel1_clock_clkpn  := w_isdivone && ((r_shift === 0.U))
-    w_sel1_clock_clkp2n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U))
-    w_sel1_clock_clkp4n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U))
-    w_sel1_clock_clkp8n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
+    w_sel1_clock_clkpfn  := w_isdivone && ((r_shift === 0.U))
+    w_sel1_clock_clkpf2n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U))
+    w_sel1_clock_clkpf4n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U))
+    w_sel1_clock_clkpf8n := w_isdivone && ((r_shift === 0.U) || (r_shift - 1 === 0.U) || (r_shift - 2 === 0.U) || (r_shift - 3 === 0.U))
     
-    w_seln_clock_clkpn  := ((r_shift - 1 === 0.U))
-    w_seln_clock_clkp2n := ((r_shift - 2 === 0.U))
-    w_seln_clock_clkp4n := ((r_shift - 3 === 0.U))
-    w_seln_clock_clkp8n := ((r_shift - 4 === 0.U))
+    w_seln_clock_clkpfn  := ((r_shift - 1 === 0.U))
+    w_seln_clock_clkpf2n := ((r_shift - 2 === 0.U))
+    w_seln_clock_clkpf4n := ((r_shift - 3 === 0.U))
+    w_seln_clock_clkpf8n := ((r_shift - 4 === 0.U))
 
     // Output Muxes
-    //Mux for clkpn
-    when (w_sel1_clock_clkpn || w_seln_clock_clkpn){
-        io.clkpn := clock.asUInt
+    //Mux for clkpfn
+    when (w_sel1_clock_clkpfn || w_seln_clock_clkpfn){
+        io.out.clkpfn := clock.asUInt
     } .otherwise {
-        io.clkpn := syncregs(0)
+        io.out.clkpfn := syncregs(0)
     }
     //Mux for clkp2n
-    when (w_sel1_clock_clkp2n || w_seln_clock_clkp2n){
-        io.clkp2n := clock.asUInt
+    when (w_sel1_clock_clkpf2n || w_seln_clock_clkpf2n){
+        io.out.clkpf2n := clock.asUInt
     } .otherwise {
-        io.clkp2n := syncregs(1)
+        io.out.clkpf2n := syncregs(1)
     }
     //Mux for clkp4n
-    when (w_sel1_clock_clkp4n || w_seln_clock_clkp4n){
-        io.clkp4n := clock.asUInt
+    when (w_sel1_clock_clkpf4n || w_seln_clock_clkpf4n){
+        io.out.clkpf4n := clock.asUInt
     } .otherwise {
-        io.clkp4n := syncregs(2)
+        io.out.clkpf4n := syncregs(2)
     }
     //Mux for clkp8n
-    when (w_sel1_clock_clkp8n || w_seln_clock_clkp8n){
-        io.clkp8n := clock.asUInt
+    when (w_sel1_clock_clkpf8n || w_seln_clock_clkpf8n){
+        io.out.clkpf8n := clock.asUInt
     } .otherwise {
-        io.clkp8n := syncregs(3)
+        io.out.clkpf8n := syncregs(3)
     }
 }
 
-
 //This gives you verilog
-object clkdiv_n_2_4_8 extends App {
+object clkdiv_universal extends App {
    // Generate verilog
-    val annos = Seq(ChiselGeneratorAnnotation(() => new clkdiv_n_2_4_8(n=8)))
+    val annos = Seq(ChiselGeneratorAnnotation(() => new clkdiv_universal(n=8)))
     val sysverilog = (new ChiselStage).emitSystemVerilog(
-        new clkdiv_n_2_4_8(n=8))
+        new clkdiv_universal(n=8))
 }
 
 

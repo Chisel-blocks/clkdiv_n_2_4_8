@@ -13,9 +13,9 @@ val chiselVersion = "3.5.6"
 
 resolvers += "A-Core Gitlab" at "https://gitlab.com/api/v4/groups/13348068/-/packages/maven"
 
-lazy val clkdiv_n_2_4_8 = (project in file("."))
+lazy val clkdiv_universal = (project in file("."))
   .settings(
-    name := "clkdiv_n_2_4_8",
+    name := "clkdiv_universal",
     libraryDependencies ++= Seq(
       "edu.berkeley.cs" %% "chisel3" % chiselVersion,
       "edu.berkeley.cs" %% "dsptools" % "1.5.6",
