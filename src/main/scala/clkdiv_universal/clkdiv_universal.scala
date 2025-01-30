@@ -14,29 +14,29 @@ import breeze.math.Complex
 
 class phaseaccumIO extends Bundle {
     val control = new Bundle {
-        val word = Input(UInt(32.W))
+        val word = Input(SInt(32.W))
     }
     val out = new Bundle {
-        val phase = Output(SInt(17.W))
+        val phase = Output(SInt(16.W))
         val iMSB = Output(UInt(1.W))
     }
 }
 
 class phaseaccum extends Module {
     val io = IO(new phaseaccumIO())
-    val accum = RegInit(0.U(33.W))
+    val accum = RegInit(0.S(17.W))
 
     accum := accum + io.control.word
 
-    io.out.phase := (Cat(0.U(1.W) + accum(31, 16))).asSInt
-    io.out.iMSB := ~accum(32, 32)
+    io.out.phase := accum(14, 0).asSInt
+    io.out.iMSB := ~accum(15, 15)
 }
 
 class clkdiv_universalCTRL(n: Int) extends Bundle {
     val Ndiv       = Input(UInt(n.W))
     val reset_clk  = Input(Bool())
     val shift      = Input(UInt(3.W))
-    val word       = Input(UInt(32.W))
+    val word       = Input(SInt(32.W))
 }
 
 class clkdiv_universalIO(n: Int) extends Bundle {
@@ -47,7 +47,7 @@ class clkdiv_universalIO(n: Int) extends Bundle {
         val clkpf2n    = Output(Bool())
         val clkpf4n    = Output(Bool())
         val clkpf8n    = Output(Bool())
-        val phase      = Output(Bool())
+        val phase      = Output(SInt(8.W))
     }
 }
 
@@ -104,8 +104,8 @@ class clkdiv_universal (n: Int=8) extends Module {
     val phaseaccum = Module(new phaseaccum())
     phaseaccum.io.control.word := io.control.word
 
-    io.out.clkpfn := phaseaccum.io.out.iMSB
-    io.out.phase := phaseaccum.io.out.phase
+    io.out.clkpf := phaseaccum.io.out.iMSB
+    io.out.phase := Cat(0.U(1.W), phaseaccum.io.out.phase(7,0)).asSInt()
 
     // Monitors if the all previous stages are zero
     val allzp = Wire(Vec(4,Bool()))
