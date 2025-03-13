@@ -11,43 +11,25 @@ import dsptools._
 import dsptools.numbers._
 import breeze.math.Complex
 
-
-class phaseaccumIO extends Bundle {
-    val control = new Bundle {
-        val word = Input(SInt(32.W))
-    }
-    val out = new Bundle {
-        val phase = Output(SInt(16.W))
-        val iMSB = Output(UInt(1.W))
-    }
-}
-
-class phaseaccum extends Module {
-    val io = IO(new phaseaccumIO())
-    val accum = RegInit(0.S(17.W))
-
-    accum := accum + io.control.word
-
-    io.out.phase := accum(14, 0).asSInt
-    io.out.iMSB := ~accum(15, 15)
-}
-
 class clkdiv_universalCTRL(n: Int) extends Bundle {
     val Ndiv       = Input(UInt(n.W))
     val reset_clk  = Input(Bool())
     val shift      = Input(UInt(3.W))
-    val word       = Input(SInt(32.W))
+    val convmode   = Input(UInt(1.W))
+    val word       = Input(UInt(32.W))
+    val word_mu    = Input(UInt(32.W))
 }
 
 class clkdiv_universalIO(n: Int) extends Bundle {
     val control = new clkdiv_universalCTRL(n=n)
     val out = new Bundle {
-        val clkpf      = Output(Bool())
         val clkpfn     = Output(Bool())
         val clkpf2n    = Output(Bool())
         val clkpf4n    = Output(Bool())
         val clkpf8n    = Output(Bool())
-        val phase      = Output(SInt(8.W))
+        val iMSB       = Output(Bool())
+        val comb       = Output(Bool())
+        val phase      = Output(SInt((16).W))
     }
 }
 
@@ -57,10 +39,10 @@ class clkdiv_universal (n: Int=8) extends Module {
     val en = Wire(Bool()) 
     en := !io.control.reset_clk 
 
-    val r_shift = RegInit(0.U.asTypeOf(io.control.shift))
-    val r_Ndiv = RegInit(1.U.asTypeOf(io.control.Ndiv))
+    val r_shift        = RegInit(0.U.asTypeOf(io.control.shift))
+    val r_Ndiv         = RegInit(1.U.asTypeOf(io.control.Ndiv))
     val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
-    val count = RegInit(0.U(n.W))
+    val count          = RegInit(0.U(n.W))
 
     //Sync the shift
     r_shift := io.control.shift
@@ -102,10 +84,13 @@ class clkdiv_universal (n: Int=8) extends Module {
 
     // Phase accum and register for mu
     val phaseaccum = Module(new phaseaccum())
-    phaseaccum.io.control.word := io.control.word
+    phaseaccum.io.control.word     := io.control.word
+    phaseaccum.io.control.word_mu  := io.control.word_mu
+    phaseaccum.io.control.convmode := io.control.convmode
 
-    io.out.clkpf := phaseaccum.io.out.iMSB
-    io.out.phase := Cat(0.U(1.W), phaseaccum.io.out.phase(7,0)).asSInt()
+    io.out.iMSB  := phaseaccum.io.out.iMSB
+    io.out.comb  := phaseaccum.io.out.comb_clk
+    io.out.phase := phaseaccum.io.out.phase
 
     // Monitors if the all previous stages are zero
     val allzp = Wire(Vec(4,Bool()))
@@ -222,6 +207,73 @@ class clkdiv_universal (n: Int=8) extends Module {
     } .otherwise {
         io.out.clkpf8n := syncregs(3)
     }
+}
+
+class phaseaccumIO extends Bundle {
+  val control = new Bundle {
+    val word = Input(UInt(32.W))
+    val word_mu = Input(UInt(32.W))
+    val convmode = Input(UInt(1.W))
+  }
+  val out = new Bundle {
+    val phase = Output(SInt((16).W))
+    val iMSB = Output(UInt(1.W))
+    val comb_clk = Output(UInt(1.W))
+  }
+}
+
+class phaseaccum extends Module {
+  val io = IO(new phaseaccumIO())
+  val neg_clock = (!(clock.asBool)).asClock
+
+  val accum           = RegInit(0.U(33.W))
+  val word_reg        = RegInit(0.U(32.W))
+  val word_mu_reg     = RegInit(0.U(32.W))
+  val accum_mu        = RegInit(0.U(33.W))
+  val out_reg         = RegInit(0.S(16.W))
+  val enab            = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+  val enab_count      = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+  val enab2           = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+  val enab_clk_sync   = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+  val enab2_re        = RegInit(0.U(1.W))
+  val accum_msb       = RegInit(0.U(1.W))
+  
+  word_reg        := ShiftRegister(io.control.word, 1, 0.U, true.B)
+  word_mu_reg     := ShiftRegister(io.control.word_mu, 1, 0.U, true.B)
+  enab2           := withClock(neg_clock){io.control.word =/= 0.U} //& io.control.convmode===0.U
+  enab_clk_sync   := withClock(neg_clock){ShiftRegister(enab2, 4, 0.U, true.B)} 
+  enab2_re        := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
+
+  when(io.control.convmode === 1.U){
+    enab2_re := ShiftRegister(enab2 & !ShiftRegister(enab2, 1, 0.U, true.B), 2, 0.U, true.B)
+  }.otherwise {
+    enab2_re := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
+  }
+  
+  accum           := accum(32, 0) +& word_reg
+  accum_msb       := accum(32)
+  enab            := withClock(neg_clock){ShiftRegister(((accum(32) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
+  enab_count      := withClock(neg_clock){(accum(32) =/= accum_msb) | enab2_re }
+  io.out.iMSB     := clock.asUInt & enab & enab2
+  io.out.comb_clk := clock.asUInt & enab & enab2
+  out_reg         := accum(31, 17).zext
+  io.out.phase    := out_reg 
+
+  when(enab_count.asBool){
+    accum_mu := accum_mu(31, 0) +& (word_mu_reg)
+  }
+
+  when (io.control.convmode === 1.U){
+    out_reg           := accum_mu(31, 17).zext
+    io.out.iMSB       := clock.asUInt & enab_clk_sync
+    io.out.comb_clk   := clock.asUInt & enab & enab_clk_sync
+    io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
+  }.otherwise {
+    io.out.iMSB       := clock.asUInt & enab
+    io.out.comb_clk   := clock.asUInt & enab_clk_sync
+    out_reg           := accum(31, 17).zext
+    io.out.phase      := out_reg
+  }
 }
 
 //This gives you verilog
