@@ -39,10 +39,28 @@ class clkdiv_universal (n: Int=8) extends Module {
     val en = Wire(Bool()) 
     en := !io.control.reset_clk 
 
+    // Phase accum and register for mu
+    val phaseaccum = Module(new phaseaccum())
+    phaseaccum.io.control.word     := io.control.word
+    phaseaccum.io.control.word_mu  := io.control.word_mu
+    phaseaccum.io.control.convmode := io.control.convmode
+
+    io.out.iMSB  := phaseaccum.io.out.iMSB
+    io.out.comb  := phaseaccum.io.out.comb_clk
+    io.out.phase := phaseaccum.io.out.phase
+
+
+    val neg_clock = (!(clock.asBool)).asClock
+    val enab_frac            = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+
+    enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
+    val clk_div_master_mux= Wire(Bool())
+    clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.iMSB, clock.asBool)
+
+    
     val r_shift        = RegInit(0.U.asTypeOf(io.control.shift))
     val r_Ndiv         = RegInit(1.U.asTypeOf(io.control.Ndiv))
     val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
-    val count          = RegInit(0.U(n.W))
 
     //Sync the shift
     r_shift := io.control.shift
@@ -50,6 +68,8 @@ class clkdiv_universal (n: Int=8) extends Module {
     //Sync the Ndiv
     r_Ndiv := io.control.Ndiv
 
+    withClock(clk_div_master_mux.asClock){
+    val count          = RegInit(0.U(n.W))
     when (en) {
         when (count >= r_Ndiv - 1) {
             count := 0.U
@@ -58,6 +78,7 @@ class clkdiv_universal (n: Int=8) extends Module {
             count := count + 1.U(1.W)
             stateregisters(0) := false.B
         }
+    }
     }
 
     val enN = RegInit(false.B) 
@@ -82,15 +103,6 @@ class clkdiv_universal (n: Int=8) extends Module {
     
     val enchain = Seq(enN, en2, en4, en8)
 
-    // Phase accum and register for mu
-    val phaseaccum = Module(new phaseaccum())
-    phaseaccum.io.control.word     := io.control.word
-    phaseaccum.io.control.word_mu  := io.control.word_mu
-    phaseaccum.io.control.convmode := io.control.convmode
-
-    io.out.iMSB  := phaseaccum.io.out.iMSB
-    io.out.comb  := phaseaccum.io.out.comb_clk
-    io.out.phase := phaseaccum.io.out.phase
 
     // Monitors if the all previous stages are zero
     val allzp = Wire(Vec(4,Bool()))
@@ -277,8 +289,10 @@ class phaseaccum extends Module {
 }
 
 //This gives you verilog
+
+
 object clkdiv_universal extends App {
-   // Generate verilog
+//   // Generate verilog
     val annos = Seq(ChiselGeneratorAnnotation(() => new clkdiv_universal(n=8)))
     val sysverilog = (new ChiselStage).emitSystemVerilog(
         new clkdiv_universal(n=8))
