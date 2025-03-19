@@ -58,6 +58,7 @@ class clkdiv_universal (n: Int=8) extends Module {
     clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.iMSB, clock.asBool)
 
     
+    withClock(clk_div_master_mux.asClock){
     val r_shift        = RegInit(0.U.asTypeOf(io.control.shift))
     val r_Ndiv         = RegInit(1.U.asTypeOf(io.control.Ndiv))
     val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
@@ -68,7 +69,6 @@ class clkdiv_universal (n: Int=8) extends Module {
     //Sync the Ndiv
     r_Ndiv := io.control.Ndiv
 
-    withClock(clk_div_master_mux.asClock){
     val count          = RegInit(0.U(n.W))
     when (en) {
         when (count >= r_Ndiv - 1) {
@@ -79,7 +79,7 @@ class clkdiv_universal (n: Int=8) extends Module {
             stateregisters(0) := false.B
         }
     }
-    }
+    
 
     val enN = RegInit(false.B) 
     enN := en
@@ -219,6 +219,7 @@ class clkdiv_universal (n: Int=8) extends Module {
     } .otherwise {
         io.out.clkpf8n := syncregs(3)
     }
+  }
 }
 
 class phaseaccumIO extends Bundle {
