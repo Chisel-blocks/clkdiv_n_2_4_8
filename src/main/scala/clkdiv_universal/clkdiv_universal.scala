@@ -51,11 +51,15 @@ class clkdiv_universal (n: Int=8) extends Module {
 
 
     val neg_clock = (!(clock.asBool)).asClock
-    val enab_frac            = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
+    val enab_frac            = withClock(neg_clock){RegInit(0.U(1.W))}
+    val convmode_switch_async= withClock(neg_clock){RegInit(0.U(1.W))}
 
+    convmode_switch_async   := withClock(neg_clock){io.control.convmode}
     enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
     val clk_div_master_mux= Wire(Bool())
-    clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.iMSB, clock.asBool)
+    val fd3_slower_clk= Wire(Bool())
+    fd3_slower_clk:= Mux(convmode_switch_async.asBool, phaseaccum.io.out.comb_clk, phaseaccum.io.out.iMSB)
+    clk_div_master_mux := Mux(enab_frac.asBool, fd3_slower_clk, clock.asBool)
 
     
     withClock(clk_div_master_mux.asClock){
