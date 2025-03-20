@@ -23,13 +23,13 @@ class clkdiv_universalCTRL(n: Int) extends Bundle {
 class clkdiv_universalIO(n: Int) extends Bundle {
     val control = new clkdiv_universalCTRL(n=n)
     val out = new Bundle {
-        val clkpfn     = Output(Bool())
-        val clkpf2n    = Output(Bool())
-        val clkpf4n    = Output(Bool())
-        val clkpf8n    = Output(Bool())
-        val iMSB       = Output(Bool())
-        val comb       = Output(Bool())
-        val phase      = Output(SInt((16).W))
+        val clkpfn      = Output(Bool())
+        val clkpf2n     = Output(Bool())
+        val clkpf4n     = Output(Bool())
+        val clkpf8n     = Output(Bool())
+        val clkpf       = Output(Bool())
+        val clkp1_sync  = Output(Bool())
+        val phase       = Output(SInt((16).W))
     }
 }
 
@@ -45,8 +45,8 @@ class clkdiv_universal (n: Int=8) extends Module {
     phaseaccum.io.control.word_mu  := io.control.word_mu
     phaseaccum.io.control.convmode := io.control.convmode
 
-    io.out.iMSB  := phaseaccum.io.out.iMSB
-    io.out.comb  := phaseaccum.io.out.comb_clk
+    io.out.clkpf  := phaseaccum.io.out.clkpf
+    io.out.clkp1_sync  := phaseaccum.io.out.clkp1_sync
     io.out.phase := phaseaccum.io.out.phase
 
 
@@ -57,9 +57,7 @@ class clkdiv_universal (n: Int=8) extends Module {
     convmode_switch_async   := withClock(neg_clock){io.control.convmode}
     enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
     val clk_div_master_mux= Wire(Bool())
-    val fd3_slower_clk= Wire(Bool())
-    fd3_slower_clk:= Mux(convmode_switch_async.asBool, phaseaccum.io.out.comb_clk, phaseaccum.io.out.iMSB)
-    clk_div_master_mux := Mux(enab_frac.asBool, fd3_slower_clk, clock.asBool)
+    clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, clock.asBool)
 
     
     withClock(clk_div_master_mux.asClock){
@@ -234,8 +232,8 @@ class phaseaccumIO extends Bundle {
   }
   val out = new Bundle {
     val phase = Output(SInt((16).W))
-    val iMSB = Output(UInt(1.W))
-    val comb_clk = Output(UInt(1.W))
+    val clkpf       = Output(Bool())
+    val clkp1_sync  = Output(Bool())
   }
 }
 
@@ -271,8 +269,8 @@ class phaseaccum extends Module {
   accum_msb       := accum(32)
   enab            := withClock(neg_clock){ShiftRegister(((accum(32) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
   enab_count      := withClock(neg_clock){(accum(32) =/= accum_msb) | enab2_re }
-  io.out.iMSB     := clock.asUInt & enab & enab2
-  io.out.comb_clk := clock.asUInt & enab & enab2
+  io.out.clkpf     := clock.asUInt & enab & enab2
+  io.out.clkp1_sync := clock.asUInt & enab & enab2
   out_reg         := accum(31, 17).zext
   io.out.phase    := out_reg 
 
@@ -282,12 +280,12 @@ class phaseaccum extends Module {
 
   when (io.control.convmode === 1.U){
     out_reg           := accum_mu(31, 17).zext
-    io.out.iMSB       := clock.asUInt & enab_clk_sync
-    io.out.comb_clk   := clock.asUInt & enab & enab_clk_sync
+    io.out.clkp1_sync       := clock.asUInt & enab_clk_sync
+    io.out.clkpf   := clock.asUInt & enab & enab_clk_sync
     io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
   }.otherwise {
-    io.out.iMSB       := clock.asUInt & enab
-    io.out.comb_clk   := clock.asUInt & enab_clk_sync
+    io.out.clkpf      := clock.asUInt & enab
+    io.out.clkp1_sync := clock.asUInt & enab_clk_sync
     out_reg           := accum(31, 17).zext
     io.out.phase      := out_reg
   }
