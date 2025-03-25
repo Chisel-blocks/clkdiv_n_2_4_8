@@ -199,25 +199,25 @@ class clkdiv_universal (n: Int=8) extends Module {
     // Output Muxes
     //Mux for clkpfn
     when (w_sel1_clock_clkpfn || w_seln_clock_clkpfn){
-        io.out.clkpfn := clock.asUInt
+        io.out.clkpfn := clk_div_master_mux.asUInt
     } .otherwise {
         io.out.clkpfn := syncregs(0)
     }
     //Mux for clkp2n
     when (w_sel1_clock_clkpf2n || w_seln_clock_clkpf2n){
-        io.out.clkpf2n := clock.asUInt
+        io.out.clkpf2n := clk_div_master_mux.asUInt
     } .otherwise {
         io.out.clkpf2n := syncregs(1)
     }
     //Mux for clkp4n
     when (w_sel1_clock_clkpf4n || w_seln_clock_clkpf4n){
-        io.out.clkpf4n := clock.asUInt
+        io.out.clkpf4n := clk_div_master_mux.asUInt
     } .otherwise {
         io.out.clkpf4n := syncregs(2)
     }
     //Mux for clkp8n
     when (w_sel1_clock_clkpf8n || w_seln_clock_clkpf8n){
-        io.out.clkpf8n := clock.asUInt
+        io.out.clkpf8n := clk_div_master_mux.asUInt
     } .otherwise {
         io.out.clkpf8n := syncregs(3)
     }
