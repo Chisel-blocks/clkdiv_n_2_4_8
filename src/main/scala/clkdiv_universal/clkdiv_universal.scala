@@ -288,7 +288,8 @@ class phaseaccum extends Module {
     io.out.clkpf      := clock.asUInt & enab
     io.out.clkp1_sync := clock.asUInt & enab_clk_sync
     out_reg           := accum(31, 17).zext
-    io.out.phase      := out_reg
+    io.out.phase      := ShiftRegister(out_reg, 3, 0.S, true.B)  
+    //io.out.phase      := out_reg
   }
 }
 
