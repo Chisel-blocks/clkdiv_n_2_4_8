@@ -45,7 +45,6 @@ class clkdiv_universal (n: Int=8) extends Module {
     phaseaccum.io.control.word_mu  := io.control.word_mu
     phaseaccum.io.control.convmode := io.control.convmode
 
-    io.out.clkpf  := phaseaccum.io.out.clkpf
     io.out.clkp1_sync  := phaseaccum.io.out.clkp1_sync
     io.out.phase := phaseaccum.io.out.phase
 
@@ -58,6 +57,7 @@ class clkdiv_universal (n: Int=8) extends Module {
     enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
     val clk_div_master_mux= Wire(Bool())
     clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, clock.asBool)
+    io.out.clkpf  := clk_div_master_mux
 
     
     withClock(clk_div_master_mux.asClock){
