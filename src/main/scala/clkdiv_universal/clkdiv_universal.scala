@@ -262,8 +262,8 @@ class phaseaccum extends Module {
   when(io.control.convmode === 1.U){
     enab2_re := ShiftRegister(enab2 & !ShiftRegister(enab2, 1, 0.U, true.B), 2, 0.U, true.B)
   }.otherwise {
-    enab2_re := ShiftRegister(enab2 & !ShiftRegister(enab2, 1, 0.U, true.B), 1, 0.U, true.B)
-    //enab2_re := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
+    //enab2_re := ShiftRegister(enab2 & !ShiftRegister(enab2, 1, 0.U, true.B), 1, 0.U, true.B)
+    enab2_re := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
   }
   
   accum           := accum(32, 0) +& word_reg
