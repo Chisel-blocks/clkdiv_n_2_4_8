@@ -16,8 +16,8 @@ class clkdiv_universalCTRL(n: Int) extends Bundle {
     val reset_clk  = Input(Bool())
     val shift      = Input(UInt(3.W))
     val convmode   = Input(UInt(1.W))
-    val word       = Input(UInt(32.W))
-    val word_mu    = Input(UInt(32.W))
+    val word       = Input(UInt(16.W))
+    val word_mu    = Input(UInt(16.W))
 }
 
 class clkdiv_universalIO(n: Int) extends Bundle {
@@ -226,8 +226,8 @@ class clkdiv_universal (n: Int=8) extends Module {
 
 class phaseaccumIO extends Bundle {
   val control = new Bundle {
-    val word = Input(UInt(32.W))
-    val word_mu = Input(UInt(32.W))
+    val word = Input(UInt(16.W))
+    val word_mu = Input(UInt(16.W))
     val convmode = Input(UInt(1.W))
   }
   val out = new Bundle {
@@ -241,10 +241,10 @@ class phaseaccum extends Module {
   val io = IO(new phaseaccumIO())
   val neg_clock = (!(clock.asBool)).asClock
 
-  val accum           = RegInit(0.U(33.W))
-  val word_reg        = RegInit(0.U(32.W))
-  val word_mu_reg     = RegInit(0.U(32.W))
-  val accum_mu        = RegInit(0.U(33.W))
+  val accum           = RegInit(0.U(17.W))
+  val word_reg        = RegInit(0.U(16.W))
+  val word_mu_reg     = RegInit(0.U(16.W))
+  val accum_mu        = RegInit(0.U(17.W))
   val out_reg         = RegInit(0.S(16.W))
   val enab            = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
   val enab_count      = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
@@ -266,30 +266,29 @@ class phaseaccum extends Module {
     //enab2_re := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
   }
   
-  accum           := accum(32, 0) +& word_reg
-  accum_msb       := accum(32)
-  enab            := withClock(neg_clock){ShiftRegister(((accum(32) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
-  enab_count      := withClock(neg_clock){(accum(32) =/= accum_msb) | enab2_re }
+  accum           := accum(16, 0) +& word_reg
+  accum_msb       := accum(16)
+  enab            := withClock(neg_clock){ShiftRegister(((accum(16) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
+  enab_count      := withClock(neg_clock){(accum(16) =/= accum_msb) | enab2_re }
   io.out.clkpf     := clock.asUInt & enab & enab2
   io.out.clkp1_sync := clock.asUInt & enab & enab2
-  out_reg         := accum(31, 17).zext
+  out_reg         := accum(15, 0).zext
   io.out.phase    := out_reg 
 
   when(enab_count.asBool){
-    accum_mu := accum_mu(31, 0) +& (word_mu_reg)
+    accum_mu := accum_mu(15, 0) +& (word_mu_reg)
   }
 
   when (io.control.convmode === 1.U){
-    out_reg           := accum_mu(31, 17).zext
+    out_reg           := accum_mu(15, 0).zext
     io.out.clkp1_sync       := clock.asUInt & enab_clk_sync
     io.out.clkpf   := clock.asUInt & enab & enab_clk_sync
     io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
   }.otherwise {
     io.out.clkpf      := clock.asUInt & enab
     io.out.clkp1_sync := clock.asUInt & enab_clk_sync
-    out_reg           := accum(31, 17).zext
-    io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
-    //io.out.phase      := out_reg
+    out_reg           := accum(15, 0).zext
+    io.out.phase      := out_reg
   }
 }
 
