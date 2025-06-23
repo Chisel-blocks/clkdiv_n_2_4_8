@@ -11,16 +11,16 @@ import dsptools._
 import dsptools.numbers._
 import breeze.math.Complex
 
-class clkdiv_universalCTRL(n: Int) extends Bundle {
+class clkdiv_universalCTRL(n: Int, word_res: Int=32, out_res: Int=16) extends Bundle {
     val Ndiv       = Input(UInt(n.W))
     val reset_clk  = Input(Bool())
     val shift      = Input(UInt(3.W))
     val convmode   = Input(UInt(1.W))
-    val word       = Input(UInt(32.W))
-    val word_mu    = Input(UInt(32.W))
+    val word       = Input(UInt(word_res.W))
+    val word_mu    = Input(UInt(word_res.W))
 }
 
-class clkdiv_universalIO(n: Int) extends Bundle {
+class clkdiv_universalIO(n: Int, word_res: Int=32, out_res: Int=16) extends Bundle {
     val control = new clkdiv_universalCTRL(n=n)
     val out = new Bundle {
         val clkpfn      = Output(Bool())
@@ -29,18 +29,18 @@ class clkdiv_universalIO(n: Int) extends Bundle {
         val clkpf8n     = Output(Bool())
         val clkpf       = Output(Bool())
         val clkp1_sync  = Output(Bool())
-        val phase       = Output(SInt((16).W))
+        val phase       = Output(SInt((out_res).W))
     }
 }
 
-class clkdiv_universal (n: Int=8) extends Module {
+class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Module {
     val io = IO(new clkdiv_universalIO(n=n))
 
     val en = Wire(Bool()) 
     en := !io.control.reset_clk 
 
     // Phase accum and register for mu
-    val phaseaccum = Module(new phaseaccum())
+    val phaseaccum = Module(new phaseaccum(word_res=word_res,out_res=out_res))
     phaseaccum.io.control.word     := io.control.word
     phaseaccum.io.control.word_mu  := io.control.word_mu
     phaseaccum.io.control.convmode := io.control.convmode
@@ -224,28 +224,28 @@ class clkdiv_universal (n: Int=8) extends Module {
   }
 }
 
-class phaseaccumIO extends Bundle {
+class phaseaccumIO (word_res: Int=32, out_res :Int=16) extends Bundle {
   val control = new Bundle {
-    val word = Input(UInt(32.W))
-    val word_mu = Input(UInt(32.W))
+    val word = Input(UInt(word_res.W))
+    val word_mu = Input(UInt(word_res.W))
     val convmode = Input(UInt(1.W))
   }
   val out = new Bundle {
-    val phase = Output(SInt((16).W))
+    val phase = Output(SInt((out_res).W))
     val clkpf       = Output(Bool())
     val clkp1_sync  = Output(Bool())
   }
 }
 
-class phaseaccum extends Module {
-  val io = IO(new phaseaccumIO())
+class phaseaccum (word_res: Int=32, out_res: Int=16) extends Module {
+  val io = IO(new phaseaccumIO(word_res=word_res, out_res=out_res))
   val neg_clock = (!(clock.asBool)).asClock
 
-  val accum           = RegInit(0.U(33.W))
-  val word_reg        = RegInit(0.U(32.W))
-  val word_mu_reg     = RegInit(0.U(32.W))
-  val accum_mu        = RegInit(0.U(33.W))
-  val out_reg         = RegInit(0.S(16.W))
+  val accum           = RegInit(0.U((word_res+1).W))
+  val word_reg        = RegInit(0.U(word_res.W))
+  val word_mu_reg     = RegInit(0.U(word_res.W))
+  val accum_mu        = RegInit(0.U((word_res+1).W))
+  val out_reg         = RegInit(0.S(out_res.W))
   val enab            = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
   val enab_count      = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
   val enab2           = withClock((!(clock.asBool)).asClock){RegInit(0.U(1.W))}
@@ -266,28 +266,28 @@ class phaseaccum extends Module {
     enab2_re := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
   }
   
-  accum           := accum(32, 0) +& word_reg
-  accum_msb       := accum(32)
-  enab            := withClock(neg_clock){ShiftRegister(((accum(32) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
-  enab_count      := withClock(neg_clock){(accum(32) =/= accum_msb) | enab2_re }
+  accum           := accum(word_res, 0) +& word_reg
+  accum_msb       := accum(word_res)
+  enab            := withClock(neg_clock){ShiftRegister(((accum(word_res) =/= accum_msb) | enab2_re), 2, 0.U, true.B) }
+  enab_count      := withClock(neg_clock){(accum(word_res) =/= accum_msb) | enab2_re }
   io.out.clkpf     := clock.asUInt & enab & enab2
   io.out.clkp1_sync := clock.asUInt & enab & enab2
-  out_reg         := accum(31, 17).zext
+  out_reg         := accum((word_res-1), (word_res-out_res+1)).zext
   io.out.phase    := out_reg 
 
   when(enab_count.asBool){
-    accum_mu := accum_mu(31, 0) +& (word_mu_reg)
+    accum_mu := accum_mu(word_res-1, 0) +& (word_mu_reg)
   }
 
   when (io.control.convmode === 1.U){
-    out_reg           := accum_mu(31, 17).zext
+    out_reg           := accum_mu((word_res-1), (word_res-out_res+1)).zext
     io.out.clkp1_sync       := clock.asUInt & enab_clk_sync
     io.out.clkpf   := clock.asUInt & enab & enab_clk_sync
     io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
   }.otherwise {
     io.out.clkpf      := clock.asUInt & enab
     io.out.clkp1_sync := clock.asUInt & enab_clk_sync
-    out_reg           := accum(31, 17).zext
+    out_reg           := accum((word_res-1), (word_res-out_res+1)).zext
     //io.out.phase      := ShiftRegister(out_reg, 1, 0.S, true.B)  
     io.out.phase      := out_reg
   }
@@ -298,9 +298,9 @@ class phaseaccum extends Module {
 
 object clkdiv_universal extends App {
 //   // Generate verilog
-    val annos = Seq(ChiselGeneratorAnnotation(() => new clkdiv_universal(n=8)))
+    val annos = Seq(ChiselGeneratorAnnotation(() => new clkdiv_universal(n=8,word_res=16,out_res=16)))
     val sysverilog = (new ChiselStage).emitSystemVerilog(
-        new clkdiv_universal(n=8))
+        new clkdiv_universal(n=8,word_res=16, out_res=16))
 }
 
 
