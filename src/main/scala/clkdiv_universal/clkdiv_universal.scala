@@ -28,6 +28,7 @@ class clkdiv_universalIO(n: Int, word_res: Int=32, out_res: Int=16) extends Bund
         val clkpf4n     = Output(Bool())
         val clkpf8n     = Output(Bool())
         val clkpf       = Output(Bool())
+        val clk_slowest = Output(Bool())
         val clkp1_sync  = Output(Bool())
         val phase       = Output(SInt((out_res).W))
     }
@@ -221,6 +222,8 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
     } .otherwise {
         io.out.clkpf8n := syncregs(3)
     }
+
+     io.out.clk_slowest := syncregs(3)
   }
 }
 
