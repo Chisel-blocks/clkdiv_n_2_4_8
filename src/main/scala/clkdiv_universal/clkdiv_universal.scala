@@ -27,7 +27,7 @@ class clkdiv_universalIO(n: Int, word_res: Int=32, out_res: Int=16) extends Bund
         val clkpf2n     = Output(Bool())
         val clkpf4n     = Output(Bool())
         val clkpf8n     = Output(Bool())
-        val clkpf       = Output(Bool())
+        val clkpn       = Output(Bool())
         val clk_slowest = Output(Bool())
         val clkp1_sync  = Output(Bool())
         val phase       = Output(SInt((out_res).W))
@@ -50,7 +50,7 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
 
     val r_shift        = RegInit(0.U.asTypeOf(io.control.shift))
     val r_Ndiv         = RegInit(1.U.asTypeOf(io.control.Ndiv))
-    val stateregisters = RegInit(VecInit(Seq.fill(4)(false.B)))
+    val stateregisters0 = RegInit(false.B)
 
     //Sync the shift
     r_shift := io.control.shift
@@ -59,18 +59,29 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
     r_Ndiv := io.control.Ndiv
 
     val count = RegInit(0.U(n.W))
+    val accum_reset_primary=RegInit(true.B)
+    val accum_reset_secondary=RegInit(true.B)
+    val grand_master_reset_3000_pro_max=RegInit(true.B)
+    accum_reset_secondary:=ShiftRegister(accum_reset_primary, 7, true.B, true.B)
+    grand_master_reset_3000_pro_max:=ShiftRegister(accum_reset_primary, 25, true.B, true.B)
     when (en) {
+        accum_reset_primary:=false.B
         when (count >= r_Ndiv - 1) {
             count := 0.U
-            stateregisters(0) := true.B
+            stateregisters0 := true.B
         } .otherwise {
             count := count + 1.U(1.W)
-            stateregisters(0) := false.B
+            stateregisters0 := false.B
         }
+    }.otherwise {
+        accum_reset_primary:=true.B
+        count := 0.U
+        stateregisters0 := false.B
+    
     }
 
-    val phaseaccum = withClock(stateregisters(0).asBool.asClock) {Module(new phaseaccum(word_res=word_res,out_res=out_res))}
-    withClock(stateregisters(0).asBool.asClock) {    
+    val phaseaccum = withClockAndReset(stateregisters0.asBool.asClock,accum_reset_secondary) {Module(new phaseaccum(word_res=word_res,out_res=out_res))}
+    withClock(stateregisters0.asBool.asClock) {    
       // Phase accum and register for mu
       phaseaccum.io.control.word     := io.control.word
       phaseaccum.io.control.word_mu  := io.control.word_mu
@@ -81,10 +92,11 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
     }
 
     val clk_div_master_mux  = Wire(Bool())
-    clk_div_master_mux      := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, stateregisters(0).asBool)
-    io.out.clkpf            := clk_div_master_mux
+    clk_div_master_mux      := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, stateregisters0.asBool)
+    io.out.clkpn            := stateregisters0.asBool
     
-    withClock(clk_div_master_mux.asClock) {
+   withClockAndReset(clk_div_master_mux.asClock,grand_master_reset_3000_pro_max) {
+      val stateregisters = RegInit(VecInit(Seq.fill(3)(false.B)))
       val enN = RegInit(false.B) 
       enN := en
 
@@ -95,13 +107,13 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
       val en8 = RegInit(false.B)
 
       //Chaining the enables
-      when (stateregisters(0)){ 
+      when (clk_div_master_mux){ 
           en2 := (enN &&  en )
       }
-      when (stateregisters(1) ){
+      when (stateregisters(1-1) ){
           en4 := en2
       }
-      when (stateregisters(2) ){
+      when (stateregisters(2-1) ){
           en8 := en4
       }
       
@@ -110,28 +122,28 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
 
       // Monitors if the all previous stages are zero
       val allzp = Wire(Vec(4,Bool()))
-      allzp(0) :=  stateregisters(0) 
+      allzp(0) :=  clk_div_master_mux 
 
       for ( i <- 1 to 3) {
-          allzp(i) := allzp(i - 1) && !stateregisters(i)
+          allzp(i) := allzp(i - 1) && !stateregisters(i-1)
       }
 
       val outregs = RegInit(VecInit(Seq.fill(4)(false.B)))
       
-      outregs(0) := stateregisters(0)
+      outregs(0) := clock.asBool()
 
       for ( i <- 1 to 3) {
          when (en) { 
              when ((enchain(i) && allzp(i - 1))) {
-                stateregisters(i) := ! stateregisters(i)
+                stateregisters(i-1) := ! stateregisters(i-1)
              } .otherwise { 
-                 stateregisters(i) := stateregisters(i)
+                 stateregisters(i-1) := stateregisters(i-1)
              }
          } .otherwise { 
-             stateregisters(i) := false.B  
+             stateregisters(i-1) := false.B  
        }
        //Pure registers at the output
-       outregs(i) := stateregisters(i)
+       outregs(i) := stateregisters(i-1)
       }
 
       
