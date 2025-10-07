@@ -52,7 +52,7 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
     val count          = RegInit(0.U(n.W))
     val phase_reset_primary =RegInit(true.B)
     val phase_reset_secondary =RegInit(true.B)
-    phase_reset_secondary := ShiftRegister(phase_reset_primary, 5, true.B, true.B)
+    phase_reset_secondary := ShiftRegister(phase_reset_primary, 4, true.B, true.B)
     when (en) {
         when (count >= r_Ndiv - 1) {
             count := 0.U
@@ -69,8 +69,8 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
     val neg_clock = (!(clock.asBool)).asClock
     val clk_div_n_mux= Wire(Bool())
     val use_div_n = withClock(neg_clock){RegInit(false.B)}
-    use_div_n :=withClock(neg_clock){r_shift >= 1.U  }
-    clk_div_n_mux := Mux(use_div_n.asBool, clock.asBool, div_n)
+    use_div_n :=withClock(neg_clock){r_shift ===0.U && en  }
+    clk_div_n_mux := Mux(use_div_n.asBool, div_n, clock.asBool)
     io.out.clkpn  := clk_div_n_mux
 
 
@@ -85,13 +85,15 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
       io.out.phase := phaseaccum.io.out.phase
 
 
-    val enab_frac            = withClock(neg_clock){RegInit(0.U(1.W))}
+    val enab_frac            = withClock(neg_clock){RegInit(false.B)}
+    //val enab_frac            = withClock(neg_clock){RegInit(0.U(1.W))}
     val convmode_switch_async= withClock(neg_clock){RegInit(0.U(1.W))}
 
     convmode_switch_async   := withClock(neg_clock){io.control.convmode}
-    enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
+    enab_frac           := withClock(neg_clock){phaseaccum.io.out.enab_frec_accum}
+    //enab_frac           := withClock(neg_clock){io.control.word =/= 0.U}
     val clk_div_master_mux= Wire(Bool())
-    clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, clock.asBool)
+    clk_div_master_mux := Mux(enab_frac.asBool, phaseaccum.io.out.clkpf, clk_div_n_mux)
     io.out.clkpfn  := clk_div_master_mux
 
         
@@ -156,6 +158,7 @@ class clkdiv_universal (n: Int=8, word_res: Int=32, out_res: Int=16) extends Mod
       val w_clkpn = Wire(Bool())
   
       //Shifting mux
+      //w_clkpn := outregs(0)
       w_clkpn := RegNext(outregs(0))
       when (r_shift === 0.U){
           syncregs(0) := w_clkpn
@@ -254,6 +257,7 @@ class phaseaccumIO (word_res: Int=32, out_res :Int=16) extends Bundle {
     val phase = Output(SInt((out_res).W))
     val clkpf       = Output(Bool())
     val clkp1_sync  = Output(Bool())
+    val enab_frec_accum = Output(Bool())
   }
 }
 
@@ -276,6 +280,7 @@ class phaseaccum (word_res: Int=32, out_res: Int=16) extends Module {
   word_reg        := ShiftRegister(io.control.word, 1, 0.U, true.B)
   word_mu_reg     := ShiftRegister(io.control.word_mu, 1, 0.U, true.B)
   enab2           := withClock(neg_clock){io.control.word =/= 0.U} //& io.control.convmode===0.U
+  io.out.enab_frec_accum := enab2
   enab_clk_sync   := withClock(neg_clock){ShiftRegister(enab2, 4, 0.U, true.B)} 
   enab2_re        := enab2 & !ShiftRegister(enab2, 1, 0.U, true.B)
 
